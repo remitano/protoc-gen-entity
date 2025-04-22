@@ -62,7 +62,7 @@ func main() {
 				// ToProto
 				entity.P("func (e *", entityName, ") ToProto() ", protoName, " {")
 				entity.P("  if e == nil { return nil }")
-				entity.P("  return &", protoName, "{")
+				entity.P("  return ", protoName, "{")
 				for _, field := range message.Fields {
 					f := title(field.GoName)
 					if isNumeric(field) {
