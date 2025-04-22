@@ -84,7 +84,7 @@ func main() {
 					if isNumeric(field) {
 						entity.P("    ", f, ": ", castNumeric("pb."+f, field), ",")
 					} else {
-						entity.P("    ", f, ": pb." + f + ",")
+						entity.P("    ", f, ": pb."+f+",")
 					}
 				}
 				entity.P("  }")
@@ -93,7 +93,7 @@ func main() {
 
 				// Unit tests
 				test.P("func Test", entityName, "_ToProto(t *testing.T) {")
-				test.P("  entity := &", entityName, "{")
+				test.P("  entity := ", entityName, "{")
 				for _, field := range message.Fields {
 					fieldName := title(field.GoName)
 					test.P("    ", fieldName, ": ", exampleValue(field), ",")
