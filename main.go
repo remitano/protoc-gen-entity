@@ -77,7 +77,7 @@ func main() {
 				g.P()
 
 				// FromPB
-				g.P("func (a *", structName, ") FromPB(pb core.Message) kafka.Entity {")
+				g.P("func (a *", structName, ") FromPB(pb core.Message) kafka.DataEntity {")
 				g.P("\tin := pb.(*", pbType, ")")
 				g.P("\treturn &", structName, "{")
 				for _, field := range message.Fields {
