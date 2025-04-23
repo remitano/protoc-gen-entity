@@ -67,7 +67,7 @@ func main() {
 				g.P()
 
 				// ToProtoBuf
-				g.P("func (a *", structName, ") ToProtoBuf() core.Message {")
+				g.P("func (a *", structName, ") ToProtoBuf() core.DataMessage {")
 				g.P("\treturn &", pbType, "{")
 				for _, field := range message.Fields {
 					g.P("\t\t", field.GoName, ": a.", field.GoName, ",")
@@ -77,7 +77,7 @@ func main() {
 				g.P()
 
 				// FromPB
-				g.P("func (a *", structName, ") FromPB(pb core.Message) kafka.DataEntity {")
+				g.P("func (a *", structName, ") FromPB(pb core.DataMessage) kafka.DataEntity {")
 				g.P("\tin := pb.(*", pbType, ")")
 				g.P("\treturn &", structName, "{")
 				for _, field := range message.Fields {
@@ -101,7 +101,7 @@ func main() {
 				g.P()
 
 				// GetMessage
-				g.P("func (a *", structName, ") GetMessage() core.Message {")
+				g.P("func (a *", structName, ") GetMessage() core.DataMessage {")
 				g.P("\treturn &", pbType, "{")
 				for _, field := range message.Fields {
 					g.P("\t\t", field.GoName, ": a.", field.GoName, ",")
