@@ -87,7 +87,7 @@ func main() {
 
 				// GetPartitionKey
 				g.P("func (a *", structName, ") GetPartitionKey() interface{} {")
-				g.P("\treturn a.ID")
+				g.P("\treturn a.Id")
 				g.P("}")
 				g.P()
 
