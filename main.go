@@ -48,7 +48,6 @@ func main() {
 			g.P(``)
 			g.P(`    "trading.engine/go_services/pkg/common/hash"`)
 			g.P(`    "trading.engine/go_services/pkg/streams/core"`)
-			g.P(`    "trading.engine/go_services/pkg/streams/kafka"`)
 			g.P(`)`)
 			g.P()
 
