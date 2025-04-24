@@ -77,13 +77,11 @@ func main() {
 				g.P()
 
 				// FromPB
-				g.P("func (a *", structName, ") FromPB(pb core.DataMessage) kafka.DataEntity {")
+				g.P("func (a *", structName, ") FromPB(pb core.DataMessage) {")
 				g.P("\tin := pb.(*", pbType, ")")
-				g.P("\treturn &", structName, "{")
 				for _, field := range message.Fields {
-					g.P("\t\t", field.GoName, ": in.", field.GoName, ",")
+					g.P("\ta.", field.GoName, " = in.", field.GoName)
 				}
-				g.P("\t}")
 				g.P("}")
 				g.P()
 
