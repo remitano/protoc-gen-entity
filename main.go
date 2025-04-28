@@ -65,6 +65,16 @@ func main() {
 				g.P("}")
 				g.P()
 
+				// Generate getter methods
+				for _, field := range message.Fields {
+					methodName := fmt.Sprintf("Get%s", field.GoName)
+					goType := goTypeForField(field)
+					g.P("func (a *", structName, ") ", methodName, "() ", goType, " {")
+					g.P("\treturn a.", field.GoName)
+					g.P("}")
+					g.P()
+				}
+
 				// ToProtoBuf
 				g.P("func (a *", structName, ") ToProtoBuf() core.DataMessage {")
 				g.P("\treturn &", pbType, "{")
