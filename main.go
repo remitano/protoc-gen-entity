@@ -47,6 +47,15 @@ func needsBigIntImport(file *protogen.File) bool {
 	return false
 }
 
+func hasFieldId(message *protogen.Message) bool {
+	for _, field := range message.Fields {
+		if string(field.Desc.Name()) == "id" {
+			return true
+		}
+	}
+	return false
+}
+
 func main() {
 	protogen.Options{}.Run(func(plugin *protogen.Plugin) error {
 		for _, f := range plugin.Files {
@@ -130,6 +139,20 @@ func main() {
 				g.P("\treturn out")
 				g.P("}")
 				g.P()
+
+				// EXTENSION FILE GENERATION (.ext.go)
+				if hasFieldId(message) {
+					extFileName := f.GeneratedFilenamePrefix + ".ext.go"
+					ext := plugin.NewGeneratedFile(extFileName, f.GoImportPath)
+
+					ext.P("package ", f.GoPackageName)
+					ext.P()
+					ext.P(`import "fmt"`)
+					ext.P()
+					ext.P("func (a *", structName, ") OperationKey() string {")
+					ext.P(`	return fmt.Sprintf("`, message.GoIdent.GoName, `:%d", a.Id)`)
+					ext.P("}")
+				}
 			}
 		}
 		return nil
