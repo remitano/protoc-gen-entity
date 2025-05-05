@@ -40,7 +40,7 @@ func goTypeForField(field *protogen.Field) string {
 	// Handle repeated
 	if field.Desc.IsList() {
 		// repeated message => []*Type, repeated scalar => []Type
-		return "[]" + strings.TrimPrefix(baseType, "*")
+		return "[]" + baseType
 	}
 
 	return baseType
