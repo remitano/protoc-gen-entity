@@ -10,30 +10,40 @@ import (
 
 func goTypeForField(field *protogen.Field) string {
 	name := string(field.Desc.Name())
+	baseType := ""
+
 	if strings.HasSuffix(name, "_scaled") {
-		return "*big.Int"
+		baseType = "*big.Int"
+	} else {
+		switch field.Desc.Kind() {
+		case protoreflect.BoolKind:
+			baseType = "bool"
+		case protoreflect.Int32Kind, protoreflect.Sint32Kind, protoreflect.Fixed32Kind:
+			baseType = "int32"
+		case protoreflect.Int64Kind, protoreflect.Sint64Kind, protoreflect.Fixed64Kind:
+			baseType = "int64"
+		case protoreflect.FloatKind:
+			baseType = "float32"
+		case protoreflect.DoubleKind:
+			baseType = "float64"
+		case protoreflect.StringKind:
+			baseType = "string"
+		case protoreflect.BytesKind:
+			baseType = "[]byte"
+		case protoreflect.MessageKind:
+			baseType = "*" + string(field.Message.GoIdent.GoName)
+		default:
+			baseType = "interface{}"
+		}
 	}
 
-	switch field.Desc.Kind() {
-	case protoreflect.BoolKind:
-		return "bool"
-	case protoreflect.Int32Kind, protoreflect.Sint32Kind, protoreflect.Fixed32Kind:
-		return "int32"
-	case protoreflect.Int64Kind, protoreflect.Sint64Kind, protoreflect.Fixed64Kind:
-		return "int64"
-	case protoreflect.FloatKind:
-		return "float32"
-	case protoreflect.DoubleKind:
-		return "float64"
-	case protoreflect.StringKind:
-		return "string"
-	case protoreflect.BytesKind:
-		return "[]byte"
-	case protoreflect.MessageKind:
-		return "*" + string(field.Message.GoIdent.GoName)
-	default:
-		return "interface{}"
+	// Handle repeated
+	if field.Desc.IsList() {
+		// repeated message => []*Type, repeated scalar => []Type
+		return "[]" + strings.TrimPrefix(baseType, "*")
 	}
+
+	return baseType
 }
 
 func needsBigIntImport(file *protogen.File) bool {
