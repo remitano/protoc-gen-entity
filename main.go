@@ -159,7 +159,7 @@ func main() {
 					ext.P()
 					ext.P(`import "fmt"`)
 					ext.P()
-					ext.P("func (a *", structName, ") OperationKey() string {")
+					ext.P("func (a *", structName, ") IdempotencyKey() string {")
 					ext.P(`	return fmt.Sprintf("`, message.GoIdent.GoName, `:%d", a.Id)`)
 					ext.P("}")
 				}
