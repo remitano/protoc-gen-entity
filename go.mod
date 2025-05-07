@@ -1,4 +1,4 @@
-module github.com/tanna88/protoc-gen-entity
+module github.com/remitano/protoc-gen-entity
 
 go 1.21
 

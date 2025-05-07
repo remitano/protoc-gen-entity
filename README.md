@@ -6,6 +6,6 @@ Protobuf messages.
 ## Usage
 
 ```bash
-go install github.com/tanna88/protoc-gen-entity@latest
+go install github.com/remitano/protoc-gen-entity@latest
 
 protoc --entity_out=paths=source_relative:. proto/order.proto
