@@ -159,8 +159,16 @@ func main() {
 					ext.P()
 					ext.P(`import "fmt"`)
 					ext.P()
-					ext.P("func (a *", structName, ") IdempotencyKey() string {")
-					ext.P(`	return fmt.Sprintf("`, message.GoIdent.GoName, `:%d", a.Id)`)
+
+					// IdempotencyType
+					ext.P("func (a *", structName, ") IdempotencyType() string {")
+					ext.P(`    return "`, message.GoIdent.GoName, `"`)
+					ext.P("}")
+					ext.P()
+
+					// IdempotencyValue
+					ext.P("func (a *", structName, ") IdempotencyValue() int64 {")
+					ext.P("    return a.Id")
 					ext.P("}")
 				}
 			}
