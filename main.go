@@ -8,9 +8,42 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
+// basicGoType maps a scalar FieldDescriptor to its Go type.
+func basicGoType(fd protoreflect.FieldDescriptor) string {
+	switch fd.Kind() {
+	case protoreflect.BoolKind:
+		return "bool"
+	case protoreflect.Int32Kind, protoreflect.Sint32Kind, protoreflect.Fixed32Kind:
+		return "int32"
+	case protoreflect.Int64Kind, protoreflect.Sint64Kind, protoreflect.Fixed64Kind:
+		return "int64"
+	case protoreflect.FloatKind:
+		return "float32"
+	case protoreflect.DoubleKind:
+		return "float64"
+	case protoreflect.StringKind:
+		return "string"
+	case protoreflect.BytesKind:
+		return "[]byte"
+	default:
+		// fallback for messages, enums, etc.
+		return "interface{}"
+	}
+}
+
+// goTypeForField determines the Go type for a given protogen.Field.
 func goTypeForField(field *protogen.Field) string {
+	// Handle map<key,value>
+	if field.Desc.IsMap() {
+		keyDesc := field.Desc.MapKey()
+		valDesc := field.Desc.MapValue()
+		keyType := basicGoType(keyDesc)
+		valType := basicGoType(valDesc)
+		return fmt.Sprintf("map[%s]%s", keyType, valType)
+	}
+
 	name := string(field.Desc.Name())
-	baseType := ""
+	var baseType string
 
 	if strings.HasSuffix(name, "_scaled") {
 		baseType = "*big.Int"
@@ -37,15 +70,14 @@ func goTypeForField(field *protogen.Field) string {
 		}
 	}
 
-	// Handle repeated
+	// Handle repeated (list)
 	if field.Desc.IsList() {
-		// repeated message => []*Type, repeated scalar => []Type
 		return "[]" + baseType
 	}
-
 	return baseType
 }
 
+// needsBigIntImport returns true if any field requires math/big.
 func needsBigIntImport(file *protogen.File) bool {
 	for _, message := range file.Messages {
 		for _, field := range message.Fields {
@@ -57,6 +89,7 @@ func needsBigIntImport(file *protogen.File) bool {
 	return false
 }
 
+// hasFieldId checks if message has "id" field (for extension).
 func hasFieldId(message *protogen.Message) bool {
 	for _, field := range message.Fields {
 		if string(field.Desc.Name()) == "id" {
@@ -73,6 +106,7 @@ func main() {
 				continue
 			}
 
+			// Generate main entity file
 			filename := f.GeneratedFilenamePrefix + ".go"
 			g := plugin.NewGeneratedFile(filename, f.GoImportPath)
 
@@ -89,16 +123,17 @@ func main() {
 			g.P(")")
 			g.P()
 
+			// Generate code per message
 			for _, message := range f.Messages {
 				structName := message.GoIdent.GoName + "Entity"
 				pbType := message.GoIdent.GoName
 
-				// Struct
+				// Struct definition
 				g.P("type ", structName, " struct {")
 				for _, field := range message.Fields {
 					goType := goTypeForField(field)
 					jsonTag := fmt.Sprintf("`json:\"%s\"`", field.Desc.JSONName())
-					g.P("\t", field.GoName, " ", goType, " ", jsonTag)
+					g.P("    ", field.GoName, " ", goType, " ", jsonTag)
 				}
 				g.P("}")
 				g.P()
@@ -108,25 +143,34 @@ func main() {
 					methodName := fmt.Sprintf("Get%s", field.GoName)
 					goType := goTypeForField(field)
 					g.P("func (a *", structName, ") ", methodName, "() ", goType, " {")
-					g.P("\treturn a.", field.GoName)
+					g.P("    return a.", field.GoName)
 					g.P("}")
 					g.P()
 				}
 
 				// FromPB
 				g.P("func (a *", structName, ") FromPB(pb core.DataMessage) {")
-				g.P("\tin := pb.(*", pbType, ")")
+				g.P("    in := pb.(*", pbType, ")")
 				for _, field := range message.Fields {
 					fieldName := field.GoName
-					protoName := string(field.Desc.Name())
-					if strings.HasSuffix(protoName, "_scaled") {
-						g.P("\tif in.", fieldName, " != \"\" {")
-						g.P("\t\tif val, ok := new(big.Int).SetString(in.", fieldName, ", 10); ok {")
-						g.P("\t\t\ta.", fieldName, " = val")
-						g.P("\t\t}")
-						g.P("\t}")
+					if field.Desc.IsMap() {
+						// map handling
+						g.P("    if len(in.", fieldName, ") > 0 {")
+						g.P("        a.", fieldName, " = make(", goTypeForField(field), ", len(in.", fieldName, "))")
+						g.P("        for k, v := range in.", fieldName, " {")
+						g.P("            a.", fieldName, "[k] = v")
+						g.P("        }")
+						g.P("    }")
+					} else if strings.HasSuffix(string(field.Desc.Name()), "_scaled") {
+						// scaled string to *big.Int
+						g.P("    if in.", fieldName, " != \"\" {")
+						g.P("        if val, ok := new(big.Int).SetString(in.", fieldName, ", 10); ok {")
+						g.P("            a.", fieldName, " = val")
+						g.P("        }")
+						g.P("    }")
 					} else {
-						g.P("\ta.", fieldName, " = in.", fieldName)
+						// direct assignment
+						g.P("    a.", fieldName, " = in.", fieldName)
 					}
 				}
 				g.P("}")
@@ -134,37 +178,40 @@ func main() {
 
 				// ToProtoBuf
 				g.P("func (a *", structName, ") ToProtoBuf() core.DataMessage {")
-				g.P("\tout := &", pbType, "{}")
+				g.P("    out := &", pbType, "{}")
 				for _, field := range message.Fields {
 					fieldName := field.GoName
-					protoName := string(field.Desc.Name())
-					if strings.HasSuffix(protoName, "_scaled") {
-						g.P("\tif a.", fieldName, " != nil {")
-						g.P("\t\tout.", fieldName, " = a.", fieldName, ".String()")
-						g.P("\t}")
+					if field.Desc.IsMap() {
+						// map handling
+						g.P("    if len(a.", fieldName, ") > 0 {")
+						g.P("        out.", fieldName, " = make(", goTypeForField(field), ", len(a.", fieldName, "))")
+						g.P("        for k, v := range a.", fieldName, " {")
+						g.P("            out.", fieldName, "[k] = v")
+						g.P("        }")
+						g.P("    }")
+					} else if strings.HasSuffix(string(field.Desc.Name()), "_scaled") {
+						// *big.Int to string
+						g.P("    if a.", fieldName, " != nil {")
+						g.P("        out.", fieldName, " = a.", fieldName, ".String()")
+						g.P("    }")
 					} else {
-						g.P("\tout.", fieldName, " = a.", fieldName)
+						g.P("    out.", fieldName, " = a.", fieldName)
 					}
 				}
-				g.P("\treturn out")
+				g.P("    return out")
 				g.P("}")
 				g.P()
 
-				// EXTENSION FILE GENERATION (.ext.go)
+				// Extension file generation (.ext.go)
 				if hasFieldId(message) {
 					extFileName := f.GeneratedFilenamePrefix + ".ext.go"
 					ext := plugin.NewGeneratedFile(extFileName, f.GoImportPath)
-
 					ext.P("package ", f.GoPackageName)
 					ext.P()
-
-					// IdempotencyType
 					ext.P("func (a *", structName, ") IdempotencyType() string {")
-					ext.P(`    return "`, message.GoIdent.GoName, `"`)
+					ext.P("    return \"", message.GoIdent.GoName, "\"")
 					ext.P("}")
 					ext.P()
-
-					// IdempotencyValue
 					ext.P("func (a *", structName, ") IdempotencyValue() int64 {")
 					ext.P("    return a.Id")
 					ext.P("}")
