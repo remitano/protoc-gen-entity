@@ -157,8 +157,6 @@ func main() {
 
 					ext.P("package ", f.GoPackageName)
 					ext.P()
-					ext.P(`import "fmt"`)
-					ext.P()
 
 					// IdempotencyType
 					ext.P("func (a *", structName, ") IdempotencyType() string {")
