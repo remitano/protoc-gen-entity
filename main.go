@@ -26,7 +26,6 @@ func basicGoType(fd protoreflect.FieldDescriptor) string {
 	case protoreflect.BytesKind:
 		return "[]byte"
 	default:
-		// fallback for messages, enums, etc.
 		return "interface{}"
 	}
 }
@@ -70,7 +69,6 @@ func goTypeForField(field *protogen.Field) string {
 		}
 	}
 
-	// Handle repeated (list)
 	if field.Desc.IsList() {
 		return "[]" + baseType
 	}
@@ -89,7 +87,7 @@ func needsBigIntImport(file *protogen.File) bool {
 	return false
 }
 
-// hasFieldId checks if message has "id" field (for extension).
+// hasFieldId checks if message has "id" field.
 func hasFieldId(message *protogen.Message) bool {
 	for _, field := range message.Fields {
 		if string(field.Desc.Name()) == "id" {
@@ -154,7 +152,6 @@ func main() {
 				for _, field := range message.Fields {
 					fieldName := field.GoName
 					if field.Desc.IsMap() {
-						// map handling
 						g.P("    if len(in.", fieldName, ") > 0 {")
 						g.P("        a.", fieldName, " = make(", goTypeForField(field), ", len(in.", fieldName, "))")
 						g.P("        for k, v := range in.", fieldName, " {")
@@ -162,14 +159,12 @@ func main() {
 						g.P("        }")
 						g.P("    }")
 					} else if strings.HasSuffix(string(field.Desc.Name()), "_scaled") {
-						// scaled string to *big.Int
 						g.P("    if in.", fieldName, " != \"\" {")
 						g.P("        if val, ok := new(big.Int).SetString(in.", fieldName, ", 10); ok {")
 						g.P("            a.", fieldName, " = val")
 						g.P("        }")
 						g.P("    }")
 					} else {
-						// direct assignment
 						g.P("    a.", fieldName, " = in.", fieldName)
 					}
 				}
@@ -182,7 +177,6 @@ func main() {
 				for _, field := range message.Fields {
 					fieldName := field.GoName
 					if field.Desc.IsMap() {
-						// map handling
 						g.P("    if len(a.", fieldName, ") > 0 {")
 						g.P("        out.", fieldName, " = make(", goTypeForField(field), ", len(a.", fieldName, "))")
 						g.P("        for k, v := range a.", fieldName, " {")
@@ -190,7 +184,6 @@ func main() {
 						g.P("        }")
 						g.P("    }")
 					} else if strings.HasSuffix(string(field.Desc.Name()), "_scaled") {
-						// *big.Int to string
 						g.P("    if a.", fieldName, " != nil {")
 						g.P("        out.", fieldName, " = a.", fieldName, ".String()")
 						g.P("    }")
@@ -203,19 +196,23 @@ func main() {
 				g.P()
 
 				// Extension file generation (.ext.go)
+				extFileName := f.GeneratedFilenamePrefix + ".ext.go"
+				ext := plugin.NewGeneratedFile(extFileName, f.GoImportPath)
+				ext.P("package ", f.GoPackageName)
+				ext.P()
+				// IdempotencyType only when message has 'id' field
+				ext.P("func (a *", structName, ") IdempotencyType() string {")
+				ext.P("    return \"", message.GoIdent.GoName, "\"")
+				ext.P("}")
+				ext.P()
+				// IdempotencyValue always generated; returns a.Id if exists, otherwise -1
+				ext.P("func (a *", structName, ") IdempotencyValue() int64 {")
 				if hasFieldId(message) {
-					extFileName := f.GeneratedFilenamePrefix + ".ext.go"
-					ext := plugin.NewGeneratedFile(extFileName, f.GoImportPath)
-					ext.P("package ", f.GoPackageName)
-					ext.P()
-					ext.P("func (a *", structName, ") IdempotencyType() string {")
-					ext.P("    return \"", message.GoIdent.GoName, "\"")
-					ext.P("}")
-					ext.P()
-					ext.P("func (a *", structName, ") IdempotencyValue() int64 {")
 					ext.P("    return a.Id")
-					ext.P("}")
+				} else {
+					ext.P("    return int64(-1)")
 				}
+				ext.P("}")
 			}
 		}
 		return nil
