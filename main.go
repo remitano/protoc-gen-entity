@@ -167,6 +167,23 @@ func main() {
 						g.P("            a.", fieldName, " = val")
 						g.P("        }")
 						g.P("    }")
+					} else if field.Desc.Kind() == protoreflect.MessageKind {
+						if field.Desc.IsList() {
+							g.P("    if len(in.", fieldName, ") > 0 {")
+							g.P("        a.", fieldName, " = make(", goTypeForField(field), ", len(in.", fieldName, "))")
+							g.P("        for i, v := range in.", fieldName, " {")
+							g.P("            e := &", field.Message.GoIdent.GoName, "Entity{}")
+							g.P("            e.FromPB(v)")
+							g.P("            a.", fieldName, "[i] = e")
+							g.P("        }")
+							g.P("    }")
+						} else {
+							g.P("    if in.", fieldName, " != nil {")
+							g.P("        e := &", field.Message.GoIdent.GoName, "Entity{}")
+							g.P("        e.FromPB(in.", fieldName, ")")
+							g.P("        a.", fieldName, " = e")
+							g.P("    }")
+						}
 					} else {
 						g.P("    a.", fieldName, " = in.", fieldName)
 					}
@@ -190,6 +207,19 @@ func main() {
 						g.P("    if a.", fieldName, " != nil {")
 						g.P("        out.", fieldName, " = a.", fieldName, ".String()")
 						g.P("    }")
+					} else if field.Desc.Kind() == protoreflect.MessageKind {
+						if field.Desc.IsList() {
+							g.P("    if len(a.", fieldName, ") > 0 {")
+							g.P("        out.", fieldName, " = make([]*", field.Message.GoIdent.GoName, ", len(a.", fieldName, "))")
+							g.P("        for i, e := range a.", fieldName, " {")
+							g.P("            out.", fieldName, "[i] = e.ToProtoBuf().(*", field.Message.GoIdent.GoName, ")")
+							g.P("        }")
+							g.P("    }")
+						} else {
+							g.P("    if a.", fieldName, " != nil {")
+							g.P("        out.", fieldName, " = a.", fieldName, ".ToProtoBuf().(*", field.Message.GoIdent.GoName, ")")
+							g.P("    }")
+						}
 					} else {
 						g.P("    out.", fieldName, " = a.", fieldName)
 					}
