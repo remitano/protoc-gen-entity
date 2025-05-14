@@ -48,6 +48,10 @@ func goTypeForField(field *protogen.Field) string {
 		baseType = "*big.Int"
 	} else {
 		switch field.Desc.Kind() {
+		case protoreflect.MessageKind:
+			entityName := field.Message.GoIdent.GoName + "Entity"
+			baseType = "*" + entityName
+
 		case protoreflect.BoolKind:
 			baseType = "bool"
 		case protoreflect.Int32Kind, protoreflect.Sint32Kind, protoreflect.Fixed32Kind:
@@ -62,13 +66,12 @@ func goTypeForField(field *protogen.Field) string {
 			baseType = "string"
 		case protoreflect.BytesKind:
 			baseType = "[]byte"
-		case protoreflect.MessageKind:
-			baseType = "*" + string(field.Message.GoIdent.GoName)
 		default:
 			baseType = "interface{}"
 		}
 	}
 
+	// Nếu là repeated field thì chuyển thành slice
 	if field.Desc.IsList() {
 		return "[]" + baseType
 	}
