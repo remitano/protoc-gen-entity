@@ -8,7 +8,6 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
-// basicGoType maps a scalar FieldDescriptor to its Go type.
 func basicGoType(fd protoreflect.FieldDescriptor) string {
 	switch fd.Kind() {
 	case protoreflect.BoolKind:
@@ -30,13 +29,17 @@ func basicGoType(fd protoreflect.FieldDescriptor) string {
 	}
 }
 
-// goTypeForField determines the Go type for a given protogen.Field.
 func goTypeForField(field *protogen.Field) string {
-	// Handle map<key,value>
 	if field.Desc.IsMap() {
 		keyDesc := field.Desc.MapKey()
 		valDesc := field.Desc.MapValue()
 		keyType := basicGoType(keyDesc)
+
+		// Special case: map<string, string> with _by_provider → map[string]*big.Int
+		if valDesc.Kind() == protoreflect.StringKind && strings.HasSuffix(string(field.Desc.Name()), "_by_provider") {
+			return fmt.Sprintf("map[%s]*big.Int", keyType)
+		}
+
 		valType := basicGoType(valDesc)
 		return fmt.Sprintf("map[%s]%s", keyType, valType)
 	}
@@ -51,38 +54,21 @@ func goTypeForField(field *protogen.Field) string {
 		case protoreflect.MessageKind:
 			entityName := field.Message.GoIdent.GoName + "Entity"
 			baseType = "*" + entityName
-
-		case protoreflect.BoolKind:
-			baseType = "bool"
-		case protoreflect.Int32Kind, protoreflect.Sint32Kind, protoreflect.Fixed32Kind:
-			baseType = "int32"
-		case protoreflect.Int64Kind, protoreflect.Sint64Kind, protoreflect.Fixed64Kind:
-			baseType = "int64"
-		case protoreflect.FloatKind:
-			baseType = "float32"
-		case protoreflect.DoubleKind:
-			baseType = "float64"
-		case protoreflect.StringKind:
-			baseType = "string"
-		case protoreflect.BytesKind:
-			baseType = "[]byte"
 		default:
-			baseType = "interface{}"
+			baseType = basicGoType(field.Desc)
 		}
 	}
 
-	// Nếu là repeated field thì chuyển thành slice
 	if field.Desc.IsList() {
 		return "[]" + baseType
 	}
 	return baseType
 }
 
-// needsBigIntImport returns true if any field requires math/big.
 func needsBigIntImport(file *protogen.File) bool {
 	for _, message := range file.Messages {
 		for _, field := range message.Fields {
-			if strings.HasSuffix(string(field.Desc.Name()), "_scaled") {
+			if strings.HasSuffix(string(field.Desc.Name()), "_scaled") || strings.HasSuffix(string(field.Desc.Name()), "_by_provider") {
 				return true
 			}
 		}
@@ -90,7 +76,6 @@ func needsBigIntImport(file *protogen.File) bool {
 	return false
 }
 
-// hasFieldId checks if message has "id" field.
 func hasFieldId(message *protogen.Message) bool {
 	for _, field := range message.Fields {
 		if string(field.Desc.Name()) == "id" {
@@ -107,7 +92,6 @@ func main() {
 				continue
 			}
 
-			// Generate main entity file
 			filename := f.GeneratedFilenamePrefix + ".go"
 			g := plugin.NewGeneratedFile(filename, f.GoImportPath)
 
@@ -115,7 +99,6 @@ func main() {
 			g.P("package ", f.GoPackageName)
 			g.P()
 
-			// Imports
 			g.P("import (")
 			if needsBigIntImport(f) {
 				g.P(`    "math/big"`)
@@ -124,12 +107,10 @@ func main() {
 			g.P(")")
 			g.P()
 
-			// Generate code per message
 			for _, message := range f.Messages {
 				structName := message.GoIdent.GoName + "Entity"
 				pbType := message.GoIdent.GoName
 
-				// Struct definition
 				g.P("type ", structName, " struct {")
 				for _, field := range message.Fields {
 					goType := goTypeForField(field)
@@ -139,7 +120,6 @@ func main() {
 				g.P("}")
 				g.P()
 
-				// Getter methods
 				for _, field := range message.Fields {
 					methodName := fmt.Sprintf("Get%s", field.GoName)
 					goType := goTypeForField(field)
@@ -154,13 +134,25 @@ func main() {
 				g.P("    in := pb.(*", pbType, ")")
 				for _, field := range message.Fields {
 					fieldName := field.GoName
+
 					if field.Desc.IsMap() {
-						g.P("    if len(in.", fieldName, ") > 0 {")
-						g.P("        a.", fieldName, " = make(", goTypeForField(field), ", len(in.", fieldName, "))")
-						g.P("        for k, v := range in.", fieldName, " {")
-						g.P("            a.", fieldName, "[k] = v")
-						g.P("        }")
-						g.P("    }")
+						if strings.HasSuffix(string(field.Desc.Name()), "_by_provider") {
+							g.P("    if len(in.", fieldName, ") > 0 {")
+							g.P("        a.", fieldName, " = make(map[string]*big.Int, len(in.", fieldName, "))")
+							g.P("        for k, v := range in.", fieldName, " {")
+							g.P("            if val, ok := new(big.Int).SetString(v, 10); ok {")
+							g.P("                a.", fieldName, "[k] = val")
+							g.P("            }")
+							g.P("        }")
+							g.P("    }")
+						} else {
+							g.P("    if len(in.", fieldName, ") > 0 {")
+							g.P("        a.", fieldName, " = make(", goTypeForField(field), ", len(in.", fieldName, "))")
+							g.P("        for k, v := range in.", fieldName, " {")
+							g.P("            a.", fieldName, "[k] = v")
+							g.P("        }")
+							g.P("    }")
+						}
 					} else if strings.HasSuffix(string(field.Desc.Name()), "_scaled") {
 						g.P("    if in.", fieldName, " != \"\" {")
 						g.P("        if val, ok := new(big.Int).SetString(in.", fieldName, ", 10); ok {")
@@ -196,13 +188,23 @@ func main() {
 				g.P("    out := &", pbType, "{}")
 				for _, field := range message.Fields {
 					fieldName := field.GoName
+
 					if field.Desc.IsMap() {
-						g.P("    if len(a.", fieldName, ") > 0 {")
-						g.P("        out.", fieldName, " = make(", goTypeForField(field), ", len(a.", fieldName, "))")
-						g.P("        for k, v := range a.", fieldName, " {")
-						g.P("            out.", fieldName, "[k] = v")
-						g.P("        }")
-						g.P("    }")
+						if strings.HasSuffix(string(field.Desc.Name()), "_by_provider") {
+							g.P("    if len(a.", fieldName, ") > 0 {")
+							g.P("        out.", fieldName, " = make(map[string]string, len(a.", fieldName, "))")
+							g.P("        for k, v := range a.", fieldName, " {")
+							g.P("            out.", fieldName, "[k] = v.String()")
+							g.P("        }")
+							g.P("    }")
+						} else {
+							g.P("    if len(a.", fieldName, ") > 0 {")
+							g.P("        out.", fieldName, " = make(", goTypeForField(field), ", len(a.", fieldName, "))")
+							g.P("        for k, v := range a.", fieldName, " {")
+							g.P("            out.", fieldName, "[k] = v")
+							g.P("        }")
+							g.P("    }")
+						}
 					} else if strings.HasSuffix(string(field.Desc.Name()), "_scaled") {
 						g.P("    if a.", fieldName, " != nil {")
 						g.P("        out.", fieldName, " = a.", fieldName, ".String()")
@@ -228,17 +230,15 @@ func main() {
 				g.P("}")
 				g.P()
 
-				// Extension file generation (.ext.go)
-				extFileName := f.GeneratedFilenamePrefix + ".ext.go"
-				ext := plugin.NewGeneratedFile(extFileName, f.GoImportPath)
+				// Extension file (.ext.go)
+				extFile := f.GeneratedFilenamePrefix + ".ext.go"
+				ext := plugin.NewGeneratedFile(extFile, f.GoImportPath)
 				ext.P("package ", f.GoPackageName)
 				ext.P()
-				// IdempotencyType only when message has 'id' field
 				ext.P("func (a *", structName, ") IdempotencyType() string {")
 				ext.P("    return \"", message.GoIdent.GoName, "\"")
 				ext.P("}")
 				ext.P()
-				// IdempotencyValue always generated; returns a.Id if exists, otherwise -1
 				ext.P("func (a *", structName, ") IdempotencyValue() int64 {")
 				if hasFieldId(message) {
 					ext.P("    return a.Id")
