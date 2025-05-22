@@ -36,7 +36,7 @@ func goTypeForField(field *protogen.Field) string {
 		keyType := basicGoType(keyDesc)
 
 		if valDesc.Kind() == protoreflect.StringKind && strings.HasSuffix(string(field.Desc.Name()), "_by_provider") {
-			return fmt.Sprintf("map[%s]*big.Int", keyType)
+			return fmt.Sprintf("map[%s]*uint256.Int", keyType)
 		}
 
 		valType := basicGoType(valDesc)
@@ -47,7 +47,7 @@ func goTypeForField(field *protogen.Field) string {
 	var baseType string
 
 	if strings.HasSuffix(name, "_scaled") {
-		baseType = "*big.Int"
+		baseType = "*uint256.Int"
 	} else if field.Desc.Kind() == protoreflect.MessageKind {
 		if field.Message.GoIdent.GoImportPath == "google.golang.org/protobuf/types/known/timestamppb" {
 			baseType = "*time.Time"
@@ -65,7 +65,7 @@ func goTypeForField(field *protogen.Field) string {
 	return baseType
 }
 
-func needsBigIntImport(file *protogen.File) bool {
+func needsUint256Import(file *protogen.File) bool {
 	for _, message := range file.Messages {
 		for _, field := range message.Fields {
 			if strings.HasSuffix(string(field.Desc.Name()), "_scaled") || strings.HasSuffix(string(field.Desc.Name()), "_by_provider") {
@@ -112,8 +112,8 @@ func main() {
 			g.P()
 
 			g.P("import (")
-			if needsBigIntImport(f) {
-				g.P(`    "math/big"`)
+			if needsUint256Import(f) {
+				g.P(`    "github.com/holiman/uint256"`)
 			}
 			if needsTimeImport(f) {
 				g.P(`    "time"`)
@@ -154,9 +154,9 @@ func main() {
 					if field.Desc.IsMap() {
 						if strings.HasSuffix(string(field.Desc.Name()), "_by_provider") {
 							g.P("    if len(in.", fieldName, ") > 0 {")
-							g.P("        a.", fieldName, " = make(map[string]*big.Int, len(in.", fieldName, "))")
+							g.P("        a.", fieldName, " = make(map[string]*uint256.Int, len(in.", fieldName, "))")
 							g.P("        for k, v := range in.", fieldName, " {")
-							g.P("            if val, ok := new(big.Int).SetString(v, 10); ok {")
+							g.P("            if val, ok := new(uint256.Int).SetString(v, 10); ok {")
 							g.P("                a.", fieldName, "[k] = val")
 							g.P("            }")
 							g.P("        }")
@@ -171,7 +171,7 @@ func main() {
 						}
 					} else if strings.HasSuffix(string(field.Desc.Name()), "_scaled") {
 						g.P("    if in.", fieldName, " != \"\" {")
-						g.P("        if val, ok := new(big.Int).SetString(in.", fieldName, ", 10); ok {")
+						g.P("        if val, ok := new(uint256.Int).SetString(in.", fieldName, ", 10); ok {")
 						g.P("            a.", fieldName, " = val")
 						g.P("        }")
 						g.P("    }")
