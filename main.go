@@ -114,6 +114,7 @@ func main() {
 			g.P("import (")
 			if needsUint256Import(f) {
 				g.P(`    "github.com/holiman/uint256"`)
+				g.P(`    "trading.engine/go_services/pkg/common/util"`)
 			}
 			if needsTimeImport(f) {
 				g.P(`    "time"`)
@@ -156,9 +157,7 @@ func main() {
 							g.P("    if len(in.", fieldName, ") > 0 {")
 							g.P("        a.", fieldName, " = make(map[string]*uint256.Int, len(in.", fieldName, "))")
 							g.P("        for k, v := range in.", fieldName, " {")
-							g.P("            if val, ok := new(uint256.Int).SetString(v, 10); ok {")
-							g.P("                a.", fieldName, "[k] = val")
-							g.P("            }")
+							g.P("            a.", fieldName, "[k] = util.ForceConvertScaledNumberStrToUint256(in.", fieldName, "[k])")
 							g.P("        }")
 							g.P("    }")
 						} else {
@@ -171,9 +170,7 @@ func main() {
 						}
 					} else if strings.HasSuffix(string(field.Desc.Name()), "_scaled") {
 						g.P("    if in.", fieldName, " != \"\" {")
-						g.P("        if val, ok := new(uint256.Int).SetString(in.", fieldName, ", 10); ok {")
-						g.P("            a.", fieldName, " = val")
-						g.P("        }")
+						g.P("         a.", fieldName, " = util.ForceConvertScaledNumberStrToUint256(in.", fieldName, ")")
 						g.P("    }")
 					} else if field.Desc.Kind() == protoreflect.MessageKind {
 						if field.Desc.IsList() {
