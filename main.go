@@ -35,7 +35,6 @@ func goTypeForField(field *protogen.Field) string {
 		valDesc := field.Desc.MapValue()
 		keyType := basicGoType(keyDesc)
 
-		// Special case: map<string, string> with _by_provider → map[string]*big.Int
 		if valDesc.Kind() == protoreflect.StringKind && strings.HasSuffix(string(field.Desc.Name()), "_by_provider") {
 			return fmt.Sprintf("map[%s]*big.Int", keyType)
 		}
@@ -52,8 +51,12 @@ func goTypeForField(field *protogen.Field) string {
 	} else {
 		switch field.Desc.Kind() {
 		case protoreflect.MessageKind:
-			entityName := field.Message.GoIdent.GoName + "Entity"
-			baseType = "*" + entityName
+			if field.Message.GoIdent.GoImportPath == "google.golang.org/protobuf/types/known/timestamppb" {
+				baseType = "*time.Time"
+			} else {
+				entityName := field.Message.GoIdent.GoName + "Entity"
+				baseType = "*" + entityName
+			}
 		default:
 			baseType = basicGoType(field.Desc)
 		}
@@ -69,6 +72,17 @@ func needsBigIntImport(file *protogen.File) bool {
 	for _, message := range file.Messages {
 		for _, field := range message.Fields {
 			if strings.HasSuffix(string(field.Desc.Name()), "_scaled") || strings.HasSuffix(string(field.Desc.Name()), "_by_provider") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func needsTimeImport(file *protogen.File) bool {
+	for _, message := range file.Messages {
+		for _, field := range message.Fields {
+			if field.Message != nil && field.Message.GoIdent.GoImportPath == "google.golang.org/protobuf/types/known/timestamppb" {
 				return true
 			}
 		}
@@ -102,6 +116,10 @@ func main() {
 			g.P("import (")
 			if needsBigIntImport(f) {
 				g.P(`    "math/big"`)
+			}
+			if needsTimeImport(f) {
+				g.P(`    "time"`)
+				g.P(`    "google.golang.org/protobuf/types/known/timestamppb"`)
 			}
 			g.P(`    "trading.engine/go_services/pkg/streams/core"`)
 			g.P(")")
