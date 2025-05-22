@@ -157,7 +157,7 @@ func main() {
 							g.P("    if len(in.", fieldName, ") > 0 {")
 							g.P("        a.", fieldName, " = make(map[string]*uint256.Int, len(in.", fieldName, "))")
 							g.P("        for k, v := range in.", fieldName, " {")
-							g.P("            a.", fieldName, "[k] = util.ForceConvertScaledNumberStrToUint256(in.", fieldName, "[k])")
+							g.P("            a.", fieldName, "[k] = util.ForceConvertScaledNumberStrToUint256(v)")
 							g.P("        }")
 							g.P("    }")
 						} else {
