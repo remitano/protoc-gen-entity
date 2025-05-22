@@ -48,18 +48,15 @@ func goTypeForField(field *protogen.Field) string {
 
 	if strings.HasSuffix(name, "_scaled") {
 		baseType = "*big.Int"
-	} else {
-		switch field.Desc.Kind() {
-		case protoreflect.MessageKind:
-			if field.Message.GoIdent.GoImportPath == "google.golang.org/protobuf/types/known/timestamppb" {
-				baseType = "*time.Time"
-			} else {
-				entityName := field.Message.GoIdent.GoName + "Entity"
-				baseType = "*" + entityName
-			}
-		default:
-			baseType = basicGoType(field.Desc)
+	} else if field.Desc.Kind() == protoreflect.MessageKind {
+		if field.Message.GoIdent.GoImportPath == "google.golang.org/protobuf/types/known/timestamppb" {
+			baseType = "*time.Time"
+		} else {
+			entityName := field.Message.GoIdent.GoName + "Entity"
+			baseType = "*" + entityName
 		}
+	} else {
+		baseType = basicGoType(field.Desc)
 	}
 
 	if field.Desc.IsList() {
@@ -82,7 +79,8 @@ func needsBigIntImport(file *protogen.File) bool {
 func needsTimeImport(file *protogen.File) bool {
 	for _, message := range file.Messages {
 		for _, field := range message.Fields {
-			if field.Message != nil && field.Message.GoIdent.GoImportPath == "google.golang.org/protobuf/types/known/timestamppb" {
+			if field.Desc.Kind() == protoreflect.MessageKind &&
+				field.Message.GoIdent.GoImportPath == "google.golang.org/protobuf/types/known/timestamppb" {
 				return true
 			}
 		}
