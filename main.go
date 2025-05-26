@@ -35,7 +35,7 @@ func goTypeForField(field *protogen.Field) string {
 		valDesc := field.Desc.MapValue()
 		keyType := basicGoType(keyDesc)
 
-		if valDesc.Kind() == protoreflect.StringKind && strings.HasSuffix(string(field.Desc.Name()), "_by_provider") {
+		if strings.HasSuffix(string(field.Desc.Name()), "_by_provider") {
 			return fmt.Sprintf("map[%s]*uint256.Int", keyType)
 		}
 
@@ -114,7 +114,6 @@ func main() {
 			g.P("import (")
 			if needsUint256Import(f) {
 				g.P(`    "github.com/holiman/uint256"`)
-				g.P(`    "trading.engine/go_services/pkg/common/util"`)
 			}
 			if needsTimeImport(f) {
 				g.P(`    "time"`)
@@ -157,7 +156,7 @@ func main() {
 							g.P("    if len(in.", fieldName, ") > 0 {")
 							g.P("        a.", fieldName, " = make(map[string]*uint256.Int, len(in.", fieldName, "))")
 							g.P("        for k, v := range in.", fieldName, " {")
-							g.P("            a.", fieldName, "[k] = util.ForceConvertScaledNumberStrToUint256(v)")
+							g.P("            a.", fieldName, "[k] = new(uint256.Int).SetBytes(v)")
 							g.P("        }")
 							g.P("    }")
 						} else {
@@ -211,9 +210,9 @@ func main() {
 					if field.Desc.IsMap() {
 						if strings.HasSuffix(string(field.Desc.Name()), "_by_provider") {
 							g.P("    if len(a.", fieldName, ") > 0 {")
-							g.P("        out.", fieldName, " = make(map[string]string, len(a.", fieldName, "))")
+							g.P("        out.", fieldName, " = make(map[string][]byte, len(a.", fieldName, "))")
 							g.P("        for k, v := range a.", fieldName, " {")
-							g.P("            out.", fieldName, "[k] = v.String()")
+							g.P("            out.", fieldName, "[k] = v.Bytes()")
 							g.P("        }")
 							g.P("    }")
 						} else {
