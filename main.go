@@ -169,8 +169,9 @@ func main() {
 							g.P("    }")
 						}
 					} else if strings.HasSuffix(string(field.Desc.Name()), "_scaled") {
-						g.P("    if in.", fieldName, " != \"\" {")
-						g.P("         a.", fieldName, " = util.ForceConvertScaledNumberStrToUint256(in.", fieldName, ")")
+						g.P("    a.", fieldName, " = new(uint256.Int)")
+						g.P("    if in.", fieldName, " != nil {")
+						g.P("        a.", fieldName, ".SetBytes(in.", fieldName, ")")
 						g.P("    }")
 					} else if field.Desc.Kind() == protoreflect.MessageKind && field.Message != nil && field.Message.GoIdent.GoImportPath == "google.golang.org/protobuf/types/known/timestamppb" {
 						g.P("    if in.", fieldName, " != nil {")
@@ -225,7 +226,7 @@ func main() {
 						}
 					} else if strings.HasSuffix(string(field.Desc.Name()), "_scaled") {
 						g.P("    if a.", fieldName, " != nil {")
-						g.P("        out.", fieldName, " = a.", fieldName, ".String()")
+						g.P("        out.", fieldName, " = a.", fieldName, ".Bytes()")
 						g.P("    }")
 					} else if field.Desc.Kind() == protoreflect.MessageKind && field.Message != nil && field.Message.GoIdent.GoImportPath == "google.golang.org/protobuf/types/known/timestamppb" {
 						g.P("    if a.", fieldName, " != nil {")
