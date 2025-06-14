@@ -30,12 +30,19 @@ func basicGoType(fd protoreflect.FieldDescriptor) string {
 }
 
 func goTypeForField(field *protogen.Field) string {
+	name := string(field.Desc.Name())
 	if field.Desc.IsMap() {
 		keyDesc := field.Desc.MapKey()
-		valDesc := field.Desc.MapValue()
 		keyType := basicGoType(keyDesc)
+		valDesc := field.Desc.MapValue()
 
-		if strings.HasSuffix(string(field.Desc.Name()), "_by_provider") {
+		// special case: map<string, google.protobuf.Timestamp>
+		if valDesc.Kind() == protoreflect.MessageKind &&
+			valDesc.Message().FullName() == "google.protobuf.Timestamp" {
+			return fmt.Sprintf("map[%s]*time.Time", keyType)
+		}
+
+		if strings.HasSuffix(name, "_by_provider") || strings.HasSuffix(name, "_amount_scaled_map") {
 			return fmt.Sprintf("map[%s]*uint256.Int", keyType)
 		}
 
@@ -43,13 +50,13 @@ func goTypeForField(field *protogen.Field) string {
 		return fmt.Sprintf("map[%s]%s", keyType, valType)
 	}
 
-	name := string(field.Desc.Name())
 	var baseType string
 
 	if strings.HasSuffix(name, "_scaled") {
 		baseType = "*uint256.Int"
 	} else if field.Desc.Kind() == protoreflect.MessageKind {
-		if field.Message.GoIdent.GoImportPath == "google.golang.org/protobuf/types/known/timestamppb" {
+		if field.Message.GoIdent.GoImportPath == "google.golang.org/protobuf/types/known/timestamppb" ||
+			field.Message.Desc.FullName() == "google.protobuf.Timestamp" {
 			baseType = "*time.Time"
 		} else {
 			entityName := field.Message.GoIdent.GoName + "Entity"
@@ -68,18 +75,7 @@ func goTypeForField(field *protogen.Field) string {
 func needsUint256Import(file *protogen.File) bool {
 	for _, message := range file.Messages {
 		for _, field := range message.Fields {
-			if strings.HasSuffix(string(field.Desc.Name()), "_scaled") {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func needsUtilImport(file *protogen.File) bool {
-	for _, message := range file.Messages {
-		for _, field := range message.Fields {
-			if strings.HasSuffix(string(field.Desc.Name()), "_by_provider") {
+			if strings.HasSuffix(string(field.Desc.Name()), "_scaled") || strings.HasSuffix(string(field.Desc.Name()), "_by_provider") {
 				return true
 			}
 		}
@@ -91,8 +87,16 @@ func needsTimeImport(file *protogen.File) bool {
 	for _, message := range file.Messages {
 		for _, field := range message.Fields {
 			if field.Desc.Kind() == protoreflect.MessageKind &&
-				field.Message.GoIdent.GoImportPath == "google.golang.org/protobuf/types/known/timestamppb" {
+				(field.Message.GoIdent.GoImportPath == "google.golang.org/protobuf/types/known/timestamppb" ||
+					field.Message.Desc.FullName() == "google.protobuf.Timestamp") {
 				return true
+			}
+			if field.Desc.IsMap() {
+				valDesc := field.Desc.MapValue()
+				if valDesc.Kind() == protoreflect.MessageKind &&
+					valDesc.Message().FullName() == "google.protobuf.Timestamp" {
+					return true
+				}
 			}
 		}
 	}
@@ -128,9 +132,6 @@ func main() {
 
 			if needsUint256Import(f) {
 				g.P(`    "github.com/holiman/uint256"`)
-			}
-			if needsUtilImport(f) {
-				g.P(`    "trading.engine/go_services/pkg/common/util"`)
 			}
 			if needsTimeImport(f) {
 				g.P(`    "time"`)
@@ -172,11 +173,18 @@ func main() {
 					fieldJSON := string(field.Desc.Name())
 
 					if field.Desc.IsMap() {
-						if strings.HasSuffix(fieldJSON, "_by_provider") {
+						if strings.HasSuffix(fieldJSON, "_by_provider") || strings.HasSuffix(fieldJSON, "_amount_scaled_map") {
 							g.P("    if len(in.", fieldName, ") > 0 {")
 							g.P("        a.", fieldName, " = make(map[string]*uint256.Int, len(in.", fieldName, "))")
 							g.P("        for k, v := range in.", fieldName, " {")
 							g.P("            a.", fieldName, "[k] = new(uint256.Int).SetBytes(v)")
+							g.P("        }")
+							g.P("    }")
+						} else if strings.HasSuffix(fieldJSON, "_updated_at_map") {
+							g.P("    if len(in.", fieldName, ") > 0 {")
+							g.P("        a.", fieldName, " = make(", goTypeForField(field), ", len(in.", fieldName, "))")
+							g.P("        for k, v := range in.", fieldName, " {")
+							g.P("            a.", fieldName, "[k] = v.AsTime()")
 							g.P("        }")
 							g.P("    }")
 						} else {
@@ -230,11 +238,18 @@ func main() {
 					fieldJSON := string(field.Desc.Name())
 
 					if field.Desc.IsMap() {
-						if strings.HasSuffix(fieldJSON, "_by_provider") {
+						if strings.HasSuffix(fieldJSON, "_by_provider") || strings.HasSuffix(fieldJSON, "_amount_scaled_map") {
 							g.P("    if len(a.", fieldName, ") > 0 {")
 							g.P("        out.", fieldName, " = make(map[string][]byte, len(a.", fieldName, "))")
 							g.P("        for k, v := range a.", fieldName, " {")
 							g.P("            out.", fieldName, "[k] = v.Bytes()")
+							g.P("        }")
+							g.P("    }")
+						} else if strings.HasSuffix(fieldJSON, "_updated_at_map") {
+							g.P("    if len(a.", fieldName, ") > 0 {")
+							g.P("        out.", fieldName, " = make(", goTypeForField(field), ", len(a.", fieldName, "))")
+							g.P("        for k, v := range a.", fieldName, " {")
+							g.P("            out.", fieldName, "[k] = timestamppb.New(*v)")
 							g.P("        }")
 							g.P("    }")
 						} else {
