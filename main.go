@@ -68,7 +68,18 @@ func goTypeForField(field *protogen.Field) string {
 func needsUint256Import(file *protogen.File) bool {
 	for _, message := range file.Messages {
 		for _, field := range message.Fields {
-			if strings.HasSuffix(string(field.Desc.Name()), "_scaled") || strings.HasSuffix(string(field.Desc.Name()), "_by_provider") {
+			if strings.HasSuffix(string(field.Desc.Name()), "_scaled") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func needsUtilImport(file *protogen.File) bool {
+	for _, message := range file.Messages {
+		for _, field := range message.Fields {
+			if strings.HasSuffix(string(field.Desc.Name()), "_by_provider") {
 				return true
 			}
 		}
@@ -112,8 +123,13 @@ func main() {
 			g.P()
 
 			g.P("import (")
+			g.P(`    "fmt"`)
+			g.P(`    "strings"`)
+
 			if needsUint256Import(f) {
 				g.P(`    "github.com/holiman/uint256"`)
+			}
+			if needsUtilImport(f) {
 				g.P(`    "trading.engine/go_services/pkg/common/util"`)
 			}
 			if needsTimeImport(f) {
@@ -128,6 +144,7 @@ func main() {
 				structName := message.GoIdent.GoName + "Entity"
 				pbType := message.GoIdent.GoName
 
+				// struct
 				g.P("type ", structName, " struct {")
 				for _, field := range message.Fields {
 					goType := goTypeForField(field)
@@ -137,6 +154,7 @@ func main() {
 				g.P("}")
 				g.P()
 
+				// Get<Field>()
 				for _, field := range message.Fields {
 					methodName := fmt.Sprintf("Get%s", field.GoName)
 					goType := goTypeForField(field)
@@ -151,9 +169,10 @@ func main() {
 				g.P("    in := pb.(*", pbType, ")")
 				for _, field := range message.Fields {
 					fieldName := field.GoName
+					fieldJSON := string(field.Desc.Name())
 
 					if field.Desc.IsMap() {
-						if strings.HasSuffix(string(field.Desc.Name()), "_by_provider") {
+						if strings.HasSuffix(fieldJSON, "_by_provider") {
 							g.P("    if len(in.", fieldName, ") > 0 {")
 							g.P("        a.", fieldName, " = make(map[string]*uint256.Int, len(in.", fieldName, "))")
 							g.P("        for k, v := range in.", fieldName, " {")
@@ -168,12 +187,13 @@ func main() {
 							g.P("        }")
 							g.P("    }")
 						}
-					} else if strings.HasSuffix(string(field.Desc.Name()), "_scaled") {
+					} else if strings.HasSuffix(fieldJSON, "_scaled") {
 						g.P("    a.", fieldName, " = new(uint256.Int)")
 						g.P("    if in.", fieldName, " != nil {")
 						g.P("        a.", fieldName, ".SetBytes(in.", fieldName, ")")
 						g.P("    }")
-					} else if field.Desc.Kind() == protoreflect.MessageKind && field.Message != nil && field.Message.GoIdent.GoImportPath == "google.golang.org/protobuf/types/known/timestamppb" {
+					} else if field.Desc.Kind() == protoreflect.MessageKind &&
+						field.Message.GoIdent.GoImportPath == "google.golang.org/protobuf/types/known/timestamppb" {
 						g.P("    if in.", fieldName, " != nil {")
 						g.P("        t := in.", fieldName, ".AsTime()")
 						g.P("        a.", fieldName, " = &t")
@@ -207,9 +227,10 @@ func main() {
 				g.P("    out := &", pbType, "{}")
 				for _, field := range message.Fields {
 					fieldName := field.GoName
+					fieldJSON := string(field.Desc.Name())
 
 					if field.Desc.IsMap() {
-						if strings.HasSuffix(string(field.Desc.Name()), "_by_provider") {
+						if strings.HasSuffix(fieldJSON, "_by_provider") {
 							g.P("    if len(a.", fieldName, ") > 0 {")
 							g.P("        out.", fieldName, " = make(map[string]string, len(a.", fieldName, "))")
 							g.P("        for k, v := range a.", fieldName, " {")
@@ -224,11 +245,12 @@ func main() {
 							g.P("        }")
 							g.P("    }")
 						}
-					} else if strings.HasSuffix(string(field.Desc.Name()), "_scaled") {
+					} else if strings.HasSuffix(fieldJSON, "_scaled") {
 						g.P("    if a.", fieldName, " != nil {")
 						g.P("        out.", fieldName, " = a.", fieldName, ".Bytes()")
 						g.P("    }")
-					} else if field.Desc.Kind() == protoreflect.MessageKind && field.Message != nil && field.Message.GoIdent.GoImportPath == "google.golang.org/protobuf/types/known/timestamppb" {
+					} else if field.Desc.Kind() == protoreflect.MessageKind &&
+						field.Message.GoIdent.GoImportPath == "google.golang.org/protobuf/types/known/timestamppb" {
 						g.P("    if a.", fieldName, " != nil {")
 						g.P("        out.", fieldName, " = timestamppb.New(*a.", fieldName, ")")
 						g.P("    }")
@@ -253,7 +275,56 @@ func main() {
 				g.P("}")
 				g.P()
 
-				// Extension file (.ext.go)
+				// String()
+				g.P("func (a *", structName, ") String() string {")
+				g.P("    var builder strings.Builder")
+				g.P(`    builder.WriteString("`, structName, ` {\n")`)
+				for _, field := range message.Fields {
+					fieldName := field.GoName
+					fieldJSON := string(field.Desc.Name())
+
+					if field.Desc.IsMap() {
+						g.P("    if a.", fieldName, " != nil {")
+						g.P(`        builder.WriteString("  `, fieldName, `: {\n")`)
+						g.P("        for k, v := range a.", fieldName, " {")
+						if strings.HasSuffix(fieldJSON, "_by_provider") || strings.HasSuffix(fieldJSON, "map") {
+							g.P("            if v != nil {")
+							g.P(`                builder.WriteString(fmt.Sprintf("    %%s: %%s,\\n", k, v.String()))`)
+							g.P("            } else {")
+							g.P(`                builder.WriteString(fmt.Sprintf("    %%s: nil,\\n", k))`)
+							g.P("            }")
+						} else {
+							g.P(`            builder.WriteString(fmt.Sprintf("    %%s: %%v,\\n", k, v))`)
+						}
+						g.P("        }")
+						g.P(`        builder.WriteString("  },\n")`)
+						g.P("    }")
+					} else if strings.HasSuffix(fieldJSON, "_scaled") {
+						g.P("    if a.", fieldName, " != nil {")
+						g.P(`        builder.WriteString(fmt.Sprintf("  `, fieldName, `: %%s,\\n", a.`, fieldName, `.String()))`)
+						g.P("    } else {")
+						g.P(`        builder.WriteString("  `, fieldName, `: nil,\\n")`)
+						g.P("    }")
+					} else if field.Desc.Kind() == protoreflect.MessageKind {
+						if field.Desc.IsList() {
+							g.P(`        builder.WriteString(fmt.Sprintf("  `, fieldName, `: %%v,\\n", a.`, fieldName, `))`)
+						} else {
+							g.P("    if a.", fieldName, " != nil {")
+							g.P(`        builder.WriteString(fmt.Sprintf("  `, fieldName, `: %%v,\\n", a.`, fieldName, `))`)
+							g.P("    } else {")
+							g.P(`        builder.WriteString("  `, fieldName, `: nil,\\n")`)
+							g.P("    }")
+						}
+					} else {
+						g.P(`    builder.WriteString(fmt.Sprintf("  `, fieldName, `: %%v,\\n", a.`, fieldName, `))`)
+					}
+				}
+				g.P(`    builder.WriteString("}")`)
+				g.P("    return builder.String()")
+				g.P("}")
+				g.P()
+
+				// ext file
 				extFile := f.GeneratedFilenamePrefix + ".ext.go"
 				ext := plugin.NewGeneratedFile(extFile, f.GoImportPath)
 				ext.P("package ", f.GoPackageName)
