@@ -304,34 +304,34 @@ func main() {
 						g.P("        for k, v := range a.", fieldName, " {")
 						if strings.HasSuffix(fieldJSON, "_by_provider") || strings.HasSuffix(fieldJSON, "map") {
 							g.P("            if v != nil {")
-							g.P(`                builder.WriteString(fmt.Sprintf("    %%s: %%s,\\n", k, v.String()))`)
+							g.P(`                builder.WriteString(fmt.Sprintf("    %s: %s,\\n", k, v.String()))`)
 							g.P("            } else {")
-							g.P(`                builder.WriteString(fmt.Sprintf("    %%s: nil,\\n", k))`)
+							g.P(`                builder.WriteString(fmt.Sprintf("    %s: nil,\\n", k))`)
 							g.P("            }")
 						} else {
-							g.P(`            builder.WriteString(fmt.Sprintf("    %%s: %%v,\\n", k, v))`)
+							g.P(`            builder.WriteString(fmt.Sprintf("    %s: %v,\\n", k, v))`)
 						}
 						g.P("        }")
 						g.P(`        builder.WriteString("  },\n")`)
 						g.P("    }")
 					} else if strings.HasSuffix(fieldJSON, "_scaled") {
 						g.P("    if a.", fieldName, " != nil {")
-						g.P(`        builder.WriteString(fmt.Sprintf("  `, fieldName, `: %%s,\\n", a.`, fieldName, `.String()))`)
+						g.P(`        builder.WriteString(fmt.Sprintf("  `, fieldName, `: %s,\\n", a.`, fieldName, `.String()))`)
 						g.P("    } else {")
 						g.P(`        builder.WriteString("  `, fieldName, `: nil,\\n")`)
 						g.P("    }")
 					} else if field.Desc.Kind() == protoreflect.MessageKind {
 						if field.Desc.IsList() {
-							g.P(`        builder.WriteString(fmt.Sprintf("  `, fieldName, `: %%v,\\n", a.`, fieldName, `))`)
+							g.P(`        builder.WriteString(fmt.Sprintf("  `, fieldName, `: %v,\\n", a.`, fieldName, `))`)
 						} else {
 							g.P("    if a.", fieldName, " != nil {")
-							g.P(`        builder.WriteString(fmt.Sprintf("  `, fieldName, `: %%v,\\n", a.`, fieldName, `))`)
+							g.P(`        builder.WriteString(fmt.Sprintf("  `, fieldName, `: %v,\\n", a.`, fieldName, `))`)
 							g.P("    } else {")
 							g.P(`        builder.WriteString("  `, fieldName, `: nil,\\n")`)
 							g.P("    }")
 						}
 					} else {
-						g.P(`    builder.WriteString(fmt.Sprintf("  `, fieldName, `: %%v,\\n", a.`, fieldName, `))`)
+						g.P(`    builder.WriteString(fmt.Sprintf("  `, fieldName, `: %v,\\n", a.`, fieldName, `))`)
 					}
 				}
 				g.P(`    builder.WriteString("}")`)
