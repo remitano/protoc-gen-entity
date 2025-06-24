@@ -344,9 +344,10 @@ func main() {
 				ext := plugin.NewGeneratedFile(extFile, f.GoImportPath)
 				ext.P("package ", f.GoPackageName)
 				ext.P()
-				ext.P("func (a *", structName, ") IdempotencyType() string {")
-				ext.P("    return \"", message.GoIdent.GoName, "\"")
-				ext.P("}")
+				eventTypeConst := "EventType" + structName[:len(structName)-len("EventEntity")]
+				ext.P(`func (a *`, structName, `) IdempotencyType() string {`)
+				ext.P(`	return `, eventTypeConst)
+				ext.P(`}`)
 				ext.P()
 				ext.P("func (a *", structName, ") IdempotencyValue() int64 {")
 				if hasFieldId(message) {
