@@ -8,6 +8,18 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
+func resolveImportPath(goImportPath protogen.GoImportPath, newSuffix string) string {
+	path := string(goImportPath)
+
+	schemaIndex := strings.Index(path, "/pkg/")
+	if schemaIndex == -1 {
+		return path
+	}
+
+	prefix := path[:schemaIndex] // ví dụ: github.com/remitano/azasend-za-be
+	return prefix + "/" + newSuffix
+}
+
 func basicGoType(fd protoreflect.FieldDescriptor) string {
 	switch fd.Kind() {
 	case protoreflect.BoolKind:
@@ -137,7 +149,8 @@ func main() {
 				g.P(`    "time"`)
 				g.P(`    "google.golang.org/protobuf/types/known/timestamppb"`)
 			}
-			g.P(`    "trading.engine/go_services/pkg/streams/core"`)
+			coreImport := resolveImportPath(f.GoImportPath, "pkg/streams/core")
+			g.P(`    "`, coreImport, `"`)
 			g.P(")")
 			g.P()
 
