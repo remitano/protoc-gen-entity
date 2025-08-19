@@ -22,6 +22,8 @@ func resolveImportPath(goImportPath protogen.GoImportPath, newSuffix string) str
 
 func basicGoType(fd protoreflect.FieldDescriptor) string {
 	switch fd.Kind() {
+	case protoreflect.BytesKind:
+		return "*uint256.Int"
 	case protoreflect.BoolKind:
 		return "bool"
 	case protoreflect.Int32Kind, protoreflect.Sint32Kind, protoreflect.Fixed32Kind:
@@ -34,8 +36,6 @@ func basicGoType(fd protoreflect.FieldDescriptor) string {
 		return "float64"
 	case protoreflect.StringKind:
 		return "string"
-	case protoreflect.BytesKind:
-		return "[]byte"
 	default:
 		return "interface{}"
 	}
@@ -64,9 +64,7 @@ func goTypeForField(field *protogen.Field) string {
 
 	var baseType string
 
-	if strings.HasSuffix(name, "_scaled") {
-		baseType = "*uint256.Int"
-	} else if field.Desc.Kind() == protoreflect.MessageKind {
+	if field.Desc.Kind() == protoreflect.MessageKind {
 		if field.Message.GoIdent.GoImportPath == "google.golang.org/protobuf/types/known/timestamppb" ||
 			field.Message.Desc.FullName() == "google.protobuf.Timestamp" {
 			baseType = "*time.Time"
@@ -87,7 +85,7 @@ func goTypeForField(field *protogen.Field) string {
 func needsUint256Import(file *protogen.File) bool {
 	for _, message := range file.Messages {
 		for _, field := range message.Fields {
-			if strings.HasSuffix(string(field.Desc.Name()), "_scaled") || strings.HasSuffix(string(field.Desc.Name()), "_by_provider") {
+			if strings.HasSuffix(string(field.Desc.Name()), "_by_provider") || field.Desc.Kind() == protoreflect.BytesKind {
 				return true
 			}
 		}
@@ -208,7 +206,7 @@ func main() {
 							g.P("        }")
 							g.P("    }")
 						}
-					} else if strings.HasSuffix(fieldJSON, "_scaled") {
+					} else if field.Desc.Kind() == protoreflect.BytesKind {
 						g.P("    a.", fieldName, " = new(uint256.Int)")
 						g.P("    if in.", fieldName, " != nil {")
 						g.P("        a.", fieldName, ".SetBytes(in.", fieldName, ")")
@@ -273,7 +271,7 @@ func main() {
 							g.P("        }")
 							g.P("    }")
 						}
-					} else if strings.HasSuffix(fieldJSON, "_scaled") {
+					} else if field.Desc.Kind() == protoreflect.BytesKind {
 						g.P("    if a.", fieldName, " != nil {")
 						g.P("        out.", fieldName, " = a.", fieldName, ".Bytes()")
 						g.P("    }")
@@ -327,7 +325,7 @@ func main() {
 						g.P("        }")
 						g.P(`        builder.WriteString("  },\n")`)
 						g.P("    }")
-					} else if strings.HasSuffix(fieldJSON, "_scaled") {
+					} else if field.Desc.Kind() == protoreflect.BytesKind {
 						g.P("    if a.", fieldName, " != nil {")
 						g.P(`        builder.WriteString(fmt.Sprintf("  `, fieldName, `: %s,\\n", a.`, fieldName, `.String()))`)
 						g.P("    } else {")
