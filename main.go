@@ -160,8 +160,13 @@ func main() {
 				g.P("type ", structName, " struct {")
 				for _, field := range message.Fields {
 					goType := goTypeForField(field)
-					jsonTag := fmt.Sprintf("`json:\"%s\"`", field.Desc.JSONName())
-					g.P("    ", field.GoName, " ", goType, " ", jsonTag)
+					var tag string
+					if goType == "*uint256.Int" {
+						tag = fmt.Sprintf("`json:\"%s\" fake:\"{uint256ptr}\"`", field.Desc.JSONName())
+					} else {
+						tag = fmt.Sprintf("`json:\"%s\"`", field.Desc.JSONName())
+					}
+					g.P("    ", field.GoName, " ", goType, " ", tag)
 				}
 				g.P("}")
 				g.P()
