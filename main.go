@@ -161,11 +161,11 @@ func main() {
 				for _, field := range message.Fields {
 					goType := goTypeForField(field)
 					var tag string
-					if goType == "*uint256.Int" {
-						tag = fmt.Sprintf("`json:\"%s\" fake:\"{uint256ptr}\"`", field.Desc.JSONName())
-					} else {
-						tag = fmt.Sprintf("`json:\"%s\"`", field.Desc.JSONName())
-					}
+					// if goType == "*uint256.Int" {
+					//   tag = fmt.Sprintf("`json:\"%s\" fake:\"{uint256ptr}\"`", field.Desc.JSONName())
+					// } else {
+					tag = fmt.Sprintf("`json:\"%s\"`", field.Desc.JSONName())
+					// }
 					g.P("    ", field.GoName, " ", goType, " ", tag)
 				}
 				g.P("}")
