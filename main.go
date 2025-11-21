@@ -41,8 +41,9 @@ func basicGoType(fd protoreflect.FieldDescriptor) string {
 	}
 }
 
-func goTypeForField(field *protogen.Field) string {
+func goTypeForField(g *protogen.GeneratedFile, field *protogen.Field) string {
 	name := string(field.Desc.Name())
+	// map field
 	if field.Desc.IsMap() {
 		keyDesc := field.Desc.MapKey()
 		keyType := basicGoType(keyDesc)
@@ -62,8 +63,18 @@ func goTypeForField(field *protogen.Field) string {
 		return fmt.Sprintf("map[%s]%s", keyType, valType)
 	}
 
+	// enum field (non-map)
+	if field.Desc.Kind() == protoreflect.EnumKind {
+		baseType := g.QualifiedGoIdent(field.Enum.GoIdent)
+		if field.Desc.IsList() {
+			return "[]" + baseType
+		}
+		return baseType
+	}
+
 	var baseType string
 
+	// message field
 	if field.Desc.Kind() == protoreflect.MessageKind {
 		if field.Message.GoIdent.GoImportPath == "google.golang.org/protobuf/types/known/timestamppb" ||
 			field.Message.Desc.FullName() == "google.protobuf.Timestamp" {
@@ -159,13 +170,13 @@ func main() {
 				// struct
 				g.P("type ", structName, " struct {")
 				for _, field := range message.Fields {
-					goType := goTypeForField(field)
 					var tag string
 					// if goType == "*uint256.Int" {
 					//   tag = fmt.Sprintf("`json:\"%s\" fake:\"{uint256ptr}\"`", field.Desc.JSONName())
 					// } else {
 					tag = fmt.Sprintf("`json:\"%s\"`", field.Desc.JSONName())
 					// }
+					goType := goTypeForField(g, field)
 					g.P("    ", field.GoName, " ", goType, " ", tag)
 				}
 				g.P("}")
@@ -174,7 +185,7 @@ func main() {
 				// Get<Field>()
 				for _, field := range message.Fields {
 					methodName := fmt.Sprintf("Get%s", field.GoName)
-					goType := goTypeForField(field)
+					goType := goTypeForField(g, field)
 					g.P("func (a *", structName, ") ", methodName, "() ", goType, " {")
 					g.P("    return a.", field.GoName)
 					g.P("}")
@@ -198,14 +209,14 @@ func main() {
 							g.P("    }")
 						} else if strings.HasSuffix(fieldJSON, "_updated_at_map") {
 							g.P("    if len(in.", fieldName, ") > 0 {")
-							g.P("        a.", fieldName, " = make(", goTypeForField(field), ", len(in.", fieldName, "))")
+							g.P("        a.", fieldName, " = make(", goTypeForField(g, field), ", len(in.", fieldName, "))")
 							g.P("        for k, v := range in.", fieldName, " {")
 							g.P("            a.", fieldName, "[k] = v.AsTime()")
 							g.P("        }")
 							g.P("    }")
 						} else {
 							g.P("    if len(in.", fieldName, ") > 0 {")
-							g.P("        a.", fieldName, " = make(", goTypeForField(field), ", len(in.", fieldName, "))")
+							g.P("        a.", fieldName, " = make(", goTypeForField(g, field), ", len(in.", fieldName, "))")
 							g.P("        for k, v := range in.", fieldName, " {")
 							g.P("            a.", fieldName, "[k] = v")
 							g.P("        }")
@@ -225,7 +236,7 @@ func main() {
 					} else if field.Desc.Kind() == protoreflect.MessageKind {
 						if field.Desc.IsList() {
 							g.P("    if len(in.", fieldName, ") > 0 {")
-							g.P("        a.", fieldName, " = make(", goTypeForField(field), ", len(in.", fieldName, "))")
+							g.P("        a.", fieldName, " = make(", goTypeForField(g, field), ", len(in.", fieldName, "))")
 							g.P("        for i, v := range in.", fieldName, " {")
 							g.P("            e := &", field.Message.GoIdent.GoName, "Entity{}")
 							g.P("            e.FromPB(v)")
@@ -239,6 +250,9 @@ func main() {
 							g.P("        a.", fieldName, " = e")
 							g.P("    }")
 						}
+					} else if field.Desc.Kind() == protoreflect.EnumKind {
+						// pb field đã là đúng enum type -> assign thẳng
+						g.P("    a.", fieldName, " = in.", fieldName)
 					} else {
 						g.P("    a.", fieldName, " = in.", fieldName)
 					}
@@ -263,14 +277,14 @@ func main() {
 							g.P("    }")
 						} else if strings.HasSuffix(fieldJSON, "_updated_at_map") {
 							g.P("    if len(a.", fieldName, ") > 0 {")
-							g.P("        out.", fieldName, " = make(", goTypeForField(field), ", len(a.", fieldName, "))")
+							g.P("        out.", fieldName, " = make(", goTypeForField(g, field), ", len(a.", fieldName, "))")
 							g.P("        for k, v := range a.", fieldName, " {")
 							g.P("            out.", fieldName, "[k] = timestamppb.New(*v)")
 							g.P("        }")
 							g.P("    }")
 						} else {
 							g.P("    if len(a.", fieldName, ") > 0 {")
-							g.P("        out.", fieldName, " = make(", goTypeForField(field), ", len(a.", fieldName, "))")
+							g.P("        out.", fieldName, " = make(", goTypeForField(g, field), ", len(a.", fieldName, "))")
 							g.P("        for k, v := range a.", fieldName, " {")
 							g.P("            out.", fieldName, "[k] = v")
 							g.P("        }")
@@ -298,6 +312,9 @@ func main() {
 							g.P("        out.", fieldName, " = a.", fieldName, ".ToProtoBuf().(*", field.Message.GoIdent.GoName, ")")
 							g.P("    }")
 						}
+					} else if field.Desc.Kind() == protoreflect.EnumKind {
+						// enum type khớp pb -> assign thẳng
+						g.P("    out.", fieldName, " = a.", fieldName)
 					} else {
 						g.P("    out.", fieldName, " = a.", fieldName)
 					}
@@ -346,6 +363,8 @@ func main() {
 							g.P(`        builder.WriteString("  `, fieldName, `: nil,\\n")`)
 							g.P("    }")
 						}
+					} else if field.Desc.Kind() == protoreflect.EnumKind {
+						g.P(`    builder.WriteString(fmt.Sprintf("  `, fieldName, `: %s,\n", a.`, fieldName, `.String()))`)
 					} else {
 						g.P(`    builder.WriteString(fmt.Sprintf("  `, fieldName, `: %v,\\n", a.`, fieldName, `))`)
 					}
