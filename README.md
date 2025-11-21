@@ -27,3 +27,16 @@ If you want to bump major version:
 - update the module version in go.mod (add /v2, /v3... to the module path)
 - Run `git tag v2.0.0`
 - Run `git push --tags`
+
+## Testing in local env
+- Sửa code ở main.go
+- Build executable file: `go build -o ./bin/protoc-gen-entity .`
+- Chạy pwd lấy {protoc-gen-entity_repo_location}
+- Update bin/convert-proto file ở trading-engine repo phần "# 2) Generate với protoc-gen-entity" như sau:
+```
+protoc \
+  --proto_path=./protos \
+  --plugin=protoc-gen-entity="{protoc-gen-entity_repo_location}/bin/protoc-gen-entity" \
+  --entity_out=paths=source_relative:./tmp \
+  ./protos/events/*.proto
+```
