@@ -391,6 +391,14 @@ func main() {
 					ext.P("    return int64(-1)")
 				}
 				ext.P("}")
+				ext.P()
+				ext.P(`func (a *`, structName, `) IsValid() bool {`)
+				ext.P(`	return true`)
+				ext.P(`}`)
+				ext.P()
+				ext.P(`func (a *`, structName, `) PartitionKey() string {`)
+				ext.P(`	return fixMe`)
+				ext.P(`}`)
 			}
 		}
 		return nil
