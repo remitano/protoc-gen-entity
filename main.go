@@ -55,7 +55,7 @@ func goTypeForField(g *protogen.GeneratedFile, field *protogen.Field) string {
 			return fmt.Sprintf("map[%s]*time.Time", keyType)
 		}
 
-		if strings.HasSuffix(name, "_by_provider") || strings.HasSuffix(name, "_amount_scaled_map") {
+		if strings.HasSuffix(name, "_by_provider") || strings.HasSuffix(name, "_amount_scaled_map") || strings.HasSuffix(name, "_amount_e18_map") {
 			return fmt.Sprintf("map[%s]*uint256.Int", keyType)
 		}
 
@@ -200,7 +200,7 @@ func main() {
 					fieldJSON := string(field.Desc.Name())
 
 					if field.Desc.IsMap() {
-						if strings.HasSuffix(fieldJSON, "_by_provider") || strings.HasSuffix(fieldJSON, "_amount_scaled_map") {
+						if strings.HasSuffix(fieldJSON, "_by_provider") || strings.HasSuffix(fieldJSON, "_amount_scaled_map") || strings.HasSuffix(fieldJSON, "_amount_e18_map") {
 							g.P("    if len(in.", fieldName, ") > 0 {")
 							g.P("        a.", fieldName, " = make(map[string]*uint256.Int, len(in.", fieldName, "))")
 							g.P("        for k, v := range in.", fieldName, " {")
@@ -268,7 +268,7 @@ func main() {
 					fieldJSON := string(field.Desc.Name())
 
 					if field.Desc.IsMap() {
-						if strings.HasSuffix(fieldJSON, "_by_provider") || strings.HasSuffix(fieldJSON, "_amount_scaled_map") {
+						if strings.HasSuffix(fieldJSON, "_by_provider") || strings.HasSuffix(fieldJSON, "_amount_scaled_map") || strings.HasSuffix(fieldJSON, "_amount_e18_map") {
 							g.P("    if len(a.", fieldName, ") > 0 {")
 							g.P("        out.", fieldName, " = make(map[string][]byte, len(a.", fieldName, "))")
 							g.P("        for k, v := range a.", fieldName, " {")
