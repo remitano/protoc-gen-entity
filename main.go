@@ -96,7 +96,9 @@ func goTypeForField(g *protogen.GeneratedFile, field *protogen.Field) string {
 func needsUint256Import(file *protogen.File) bool {
 	for _, message := range file.Messages {
 		for _, field := range message.Fields {
-			if strings.HasSuffix(string(field.Desc.Name()), "_by_provider") || field.Desc.Kind() == protoreflect.BytesKind {
+			if strings.HasSuffix(string(field.Desc.Name()), "_by_provider") ||
+				field.Desc.Kind() == protoreflect.BytesKind ||
+				isBytesMapWithE18OrScaled(field) {
 				return true
 			}
 		}
