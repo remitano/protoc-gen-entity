@@ -133,6 +133,23 @@ func hasFieldId(message *protogen.Message) bool {
 	return false
 }
 
+// isBytesMapWithE18OrScaled checks if field is a map<string, bytes> and field name contains "E18" or "Scaled"
+func isBytesMapWithE18OrScaled(field *protogen.Field) bool {
+	if !field.Desc.IsMap() {
+		return false
+	}
+
+	// Check if map value is bytes
+	valDesc := field.Desc.MapValue()
+	if valDesc.Kind() != protoreflect.BytesKind {
+		return false
+	}
+
+	// Check if field name contains "E18" or "Scaled"
+	fieldName := string(field.Desc.Name())
+	return strings.Contains(fieldName, "E18") || strings.Contains(fieldName, "Scaled")
+}
+
 func main() {
 	protogen.Options{}.Run(func(plugin *protogen.Plugin) error {
 		for _, f := range plugin.Files {
@@ -200,7 +217,14 @@ func main() {
 					fieldJSON := string(field.Desc.Name())
 
 					if field.Desc.IsMap() {
-						if strings.HasSuffix(fieldJSON, "_by_provider") || strings.HasSuffix(fieldJSON, "_amount_scaled_map") || strings.HasSuffix(fieldJSON, "_amount_e18_map") {
+						if isBytesMapWithE18OrScaled(field) {
+							g.P("    if len(in.", fieldName, ") > 0 {")
+							g.P("        a.", fieldName, " = make(map[string]*uint256.Int, len(in.", fieldName, "))")
+							g.P("        for k, v := range in.", fieldName, " {")
+							g.P("            a.", fieldName, "[k] = new(uint256.Int).SetBytes(v)")
+							g.P("        }")
+							g.P("    }")
+						} else if strings.HasSuffix(fieldJSON, "_by_provider") || strings.HasSuffix(fieldJSON, "_amount_scaled_map") || strings.HasSuffix(fieldJSON, "_amount_e18_map") {
 							g.P("    if len(in.", fieldName, ") > 0 {")
 							g.P("        a.", fieldName, " = make(map[string]*uint256.Int, len(in.", fieldName, "))")
 							g.P("        for k, v := range in.", fieldName, " {")
@@ -268,7 +292,14 @@ func main() {
 					fieldJSON := string(field.Desc.Name())
 
 					if field.Desc.IsMap() {
-						if strings.HasSuffix(fieldJSON, "_by_provider") || strings.HasSuffix(fieldJSON, "_amount_scaled_map") || strings.HasSuffix(fieldJSON, "_amount_e18_map") {
+						if isBytesMapWithE18OrScaled(field) {
+							g.P("    if len(a.", fieldName, ") > 0 {")
+							g.P("        out.", fieldName, " = make(map[string][]byte, len(a.", fieldName, "))")
+							g.P("        for k, v := range a.", fieldName, " {")
+							g.P("            out.", fieldName, "[k] = v.Bytes()")
+							g.P("        }")
+							g.P("    }")
+						} else if strings.HasSuffix(fieldJSON, "_by_provider") || strings.HasSuffix(fieldJSON, "_amount_scaled_map") || strings.HasSuffix(fieldJSON, "_amount_e18_map") {
 							g.P("    if len(a.", fieldName, ") > 0 {")
 							g.P("        out.", fieldName, " = make(map[string][]byte, len(a.", fieldName, "))")
 							g.P("        for k, v := range a.", fieldName, " {")
