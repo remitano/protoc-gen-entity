@@ -1,0 +1,54 @@
+#!/bin/bash
+
+# Script to bump version, create tag and push
+
+set -e
+
+# Get the directory of this script
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+VERSION_FILE="$PROJECT_ROOT/version"
+
+# Read current version
+if [ ! -f "$VERSION_FILE" ]; then
+    echo "Error: version file not found at $VERSION_FILE"
+    exit 1
+fi
+
+CURRENT_VERSION=$(cat "$VERSION_FILE" | tr -d ' \n\r')
+echo "Current version: $CURRENT_VERSION"
+
+# Extract version number (remove 'v' prefix if present)
+VERSION_NUM="${CURRENT_VERSION#v}"
+
+# Split version into parts
+IFS='.' read -ra VERSION_PARTS <<< "$VERSION_NUM"
+MAJOR="${VERSION_PARTS[0]}"
+MINOR="${VERSION_PARTS[1]}"
+PATCH="${VERSION_PARTS[2]}"
+
+# Increment patch version
+PATCH=$((PATCH + 1))
+
+# Create new version
+NEW_VERSION="v${MAJOR}.${MINOR}.${PATCH}"
+echo "New version: $NEW_VERSION"
+
+# Update version file
+echo "$NEW_VERSION" > "$VERSION_FILE"
+echo "Updated version file"
+
+# Commit version change
+git add "$VERSION_FILE"
+git commit -m "Bump version to $NEW_VERSION" || {
+    echo "Warning: No changes to commit or commit failed"
+}
+
+# Create and push tag
+echo "Creating tag $NEW_VERSION..."
+git tag -a "$NEW_VERSION" -m "Release $NEW_VERSION"
+
+echo "Pushing tag to remote..."
+git push origin "$NEW_VERSION"
+
+echo "Done! Version bumped to $NEW_VERSION and tag pushed."
