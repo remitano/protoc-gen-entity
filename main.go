@@ -249,8 +249,8 @@ func main() {
 							g.P("    }")
 						}
 					} else if field.Desc.Kind() == protoreflect.BytesKind {
-						g.P("    a.", fieldName, " = new(uint256.Int)")
 						g.P("    if in.", fieldName, " != nil {")
+						g.P("    		 a.", fieldName, " = new(uint256.Int)")
 						g.P("        a.", fieldName, ".SetBytes(in.", fieldName, ")")
 						g.P("    }")
 					} else if field.Desc.Kind() == protoreflect.MessageKind &&
