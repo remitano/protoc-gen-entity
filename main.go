@@ -223,7 +223,11 @@ func main() {
 							g.P("    if len(in.", fieldName, ") > 0 {")
 							g.P("        a.", fieldName, " = make(map[string]*uint256.Int, len(in.", fieldName, "))")
 							g.P("        for k, v := range in.", fieldName, " {")
-							g.P("            a.", fieldName, "[k] = new(uint256.Int).SetBytes(v)")
+							g.P("        		if len(v) == 0 {")
+							g.P("             a.", fieldName, "[k] = nil")
+							g.P("        	  } else {")
+							g.P("             a.", fieldName, "[k] = new(uint256.Int).SetBytes(v)")
+							g.P("        	  }")
 							g.P("        }")
 							g.P("    }")
 						} else if strings.HasSuffix(fieldJSON, "_by_provider") || strings.HasSuffix(fieldJSON, "_amount_scaled_map") || strings.HasSuffix(fieldJSON, "_amount_e18_map") {
@@ -250,8 +254,12 @@ func main() {
 						}
 					} else if field.Desc.Kind() == protoreflect.BytesKind {
 						g.P("    if in.", fieldName, " != nil {")
-						g.P("    		 a.", fieldName, " = new(uint256.Int)")
+						g.P("      a.", fieldName, " = new(uint256.Int)")
+						g.P("      if len(in.", fieldName, ") == 0 {")
+						g.P("        a.", fieldName, " = nil")
+						g.P("      } else {")
 						g.P("        a.", fieldName, ".SetBytes(in.", fieldName, ")")
+						g.P("      }")
 						g.P("    }")
 					} else if field.Desc.Kind() == protoreflect.MessageKind &&
 						field.Message.GoIdent.GoImportPath == "google.golang.org/protobuf/types/known/timestamppb" {
@@ -298,7 +306,15 @@ func main() {
 							g.P("    if len(a.", fieldName, ") > 0 {")
 							g.P("        out.", fieldName, " = make(map[string][]byte, len(a.", fieldName, "))")
 							g.P("        for k, v := range a.", fieldName, " {")
-							g.P("            out.", fieldName, "[k] = v.Bytes()")
+							g.P("            if v != nil {")
+							g.P("            		tmp := v.Bytes()")
+							g.P("           		if len(tmp) == 0 {")
+							g.P("              		tmp = []byte{0} // important: biểu diễn rõ ràng giá trị 0")
+							g.P("            		}")
+							g.P("            		out.", fieldName, "[k] = tmp")
+							g.P("            } else {")
+							g.P("            		out.", fieldName, "[k] = []byte{}")
+							g.P("            }")
 							g.P("        }")
 							g.P("    }")
 						} else if strings.HasSuffix(fieldJSON, "_by_provider") || strings.HasSuffix(fieldJSON, "_amount_scaled_map") || strings.HasSuffix(fieldJSON, "_amount_e18_map") {
@@ -325,7 +341,11 @@ func main() {
 						}
 					} else if field.Desc.Kind() == protoreflect.BytesKind {
 						g.P("    if a.", fieldName, " != nil {")
-						g.P("        out.", fieldName, " = a.", fieldName, ".Bytes()")
+						g.P("        tmp := a.", fieldName, ".Bytes()")
+						g.P("        if len(tmp) == 0 {")
+						g.P("          tmp = []byte{0} // important: biểu diễn rõ ràng giá trị 0")
+						g.P("        }")
+						g.P("        out.", fieldName, " = tmp")
 						g.P("    }")
 					} else if field.Desc.Kind() == protoreflect.MessageKind &&
 						field.Message.GoIdent.GoImportPath == "google.golang.org/protobuf/types/known/timestamppb" {
